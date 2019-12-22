@@ -3,11 +3,11 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"intqueue"
 	"log"
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"util/datafile"
 )
 
@@ -36,8 +36,8 @@ type param struct {
 type tape struct {
 	data   []int
 	cursor int
-	input  intqueue.Queue
-	output intqueue.Queue
+	input  chan int
+	output *chan int
 }
 
 func getChar(s string, pos int) byte {
@@ -130,7 +130,12 @@ func (t tape) Output() int {
 }
 
 // Run will run the tape from the current data/cursor until it halts or hits an unknown opcode
-func (t *tape) Run() {
+func (t *tape) Run(wg *sync.WaitGroup, i int) {
+	if wg != nil {
+		wg.Add(1)
+		defer wg.Done()
+	}
+
 	for !t.IsHalted() {
 		value := t.Value()
 		opcode := decodeOpcode(value)
@@ -160,13 +165,17 @@ func (t *tape) Run() {
 			{
 				params := t.GetParams(value, 1)
 				destination := params[0].value
-				t.data[destination] = t.input.Pop()
+				//fmt.Println(i, "Waiting for input")
+				t.data[destination] = <-t.input
+				//fmt.Println(i, "Got input:", t.data[destination])
 			}
 		case outputOpcode:
 			{
 				params := t.GetParams(value, 1)
 				value := t.Resolve(params[0])
-				t.output.Push(value)
+				//fmt.Println(i, "Sending output", value)
+				*t.output <- value
+				//fmt.Println(i, "Sent output")
 			}
 		case jumpIfTrueOpcode:
 			{
@@ -217,6 +226,7 @@ func (t *tape) Run() {
 			log.Fatal("Invalid opcode: ", opcode)
 		}
 	}
+	//fmt.Println(i, "Done")
 }
 
 func getTapeData() []int {
@@ -242,13 +252,13 @@ func getTapeData() []int {
 
 func createBlankTape() tape {
 	data := getTapeData()
-	return tape{data, 0, intqueue.Queue{}, intqueue.Queue{}}
+	return tape{data, 0, make(chan int), nil}
 }
 
 func createTapeCopy(data []int) tape {
 	dataCopy := make([]int, len(data))
 	copy(dataCopy, data)
-	return tape{dataCopy, 0, intqueue.Queue{}, intqueue.Queue{}}
+	return tape{dataCopy, 0, make(chan int), nil}
 }
 
 func permutations(items []int, callback func([]int), i int) {
@@ -266,9 +276,40 @@ func permutations(items []int, callback func([]int), i int) {
 	}
 }
 
+func wrap(v, l int) int {
+	for v < 0 {
+		v += l
+	}
+
+	return v % l
+}
+
+func linkAmps(amplifiers []tape) {
+	for i := 0; i < len(amplifiers); i++ {
+		amp := &amplifiers[i]
+		nextAmp := &amplifiers[wrap(i+1, len(amplifiers))]
+		amp.output = &nextAmp.input
+	}
+}
+
+func startAmps(amplifiers []tape, wg *sync.WaitGroup) {
+	lastIndex := len(amplifiers)-1
+
+	for i := 0; i < len(amplifiers); i++ {
+		amp := &amplifiers[i]
+		if i < lastIndex {
+			go amp.Run(wg, i)
+		} else {
+			go amp.Run(nil, i)
+		}
+	}
+
+}
+
 func part1() {
 	data := getTapeData()
 	highestOutput := -1
+	var highestOutputPhases []int
 	permutations([]int{0, 1, 2, 3, 4}, func(phases []int) {
 		amplifiers := []tape{
 			createTapeCopy(data),
@@ -277,27 +318,27 @@ func part1() {
 			createTapeCopy(data),
 			createTapeCopy(data),
 		}
+		linkAmps(amplifiers)
+
+		var wg sync.WaitGroup
+		startAmps(amplifiers, &wg)
 
 		for i, phase := range phases {
-			amplifiers[i].input.Push(phase)
+			amplifiers[i].input <- phase
 		}
 
-		amplifiers[0].input.Push(0)
+		amplifiers[0].input <- 0
 
-		for i := 0; i < len(amplifiers); i++ {
-			amplifiers[i].Run()
+		wg.Wait()
+		output := <-amplifiers[0].input
 
-			if i < len(amplifiers)-1 {
-				amplifiers[i+1].input.Push(amplifiers[i].output.Pop())
-			}
-		}
-
-		output := amplifiers[len(amplifiers)-1].output.Pop()
 		if highestOutput == -1 || output > highestOutput {
 			highestOutput = output
+			highestOutputPhases = phases
 		}
 	}, 0)
-	fmt.Println(highestOutput)
+	fmt.Println("Highest output:", highestOutput)
+	fmt.Println("Phases:", highestOutputPhases)
 }
 
 func part2() {
@@ -311,22 +352,20 @@ func part2() {
 			createTapeCopy(data),
 			createTapeCopy(data),
 		}
+		linkAmps(amplifiers)
+
+		var wg sync.WaitGroup
+		startAmps(amplifiers, &wg)
 
 		for i, phase := range phases {
-			amplifiers[i].input.Push(phase)
+			amplifiers[i].input <- phase
 		}
 
-		amplifiers[0].input.Push(0)
+		amplifiers[0].input <- 0
 
-		for i := 0; i < len(amplifiers); i++ {
-			amplifiers[i].Run()
+		wg.Wait()
+		output := <-amplifiers[0].input
 
-			if i < len(amplifiers)-1 {
-				amplifiers[i+1].input.Push(amplifiers[i].output.Pop())
-			}
-		}
-
-		output := amplifiers[len(amplifiers)-1].output.Pop()
 		if highestOutput == -1 || output > highestOutput {
 			highestOutput = output
 		}
@@ -335,5 +374,5 @@ func part2() {
 }
 
 func main() {
-	part1()
+	part2()
 }
