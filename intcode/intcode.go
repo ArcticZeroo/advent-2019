@@ -120,100 +120,116 @@ func (t Tape) Output() intqueue.Queue {
 	return t.output
 }
 
-// Run will run the tape from the current data/cursor until it halts or hits an unknown opcode
-func (t *Tape) Run() {
-	for !t.IsHalted() {
-		value := t.Value()
-		opcode := decodeOpcode(value)
+func (t *Tape) RunNextInstruction() {
+	value := t.Value()
+	opcode := decodeOpcode(value)
 
-		// fmt.Println("Processing value:", value)
-		// fmt.Println("Current data:", t.data)
-		// fmt.Println("Opcode:", opcode)
+	// fmt.Println("Processing value:", value)
+	// fmt.Println("Current data:", t.data)
+	// fmt.Println("Opcode:", opcode)
 
-		switch opcode {
-		case addOpcode:
-			{
-				params := t.GetParams(value, 3)
-				a := t.Resolve(params[0])
-				b := t.Resolve(params[1])
-				dest := t.Resolve(params[2])
-				*dest = *a + *b
-			}
-		case multiplyOpcode:
-			{
-				params := t.GetParams(value, 3)
-				a := t.Resolve(params[0])
-				b := t.Resolve(params[1])
-				dest := t.Resolve(params[2])
-				*dest = (*a) * (*b)
-			}
-		case inputOpcode:
-			{
-				params := t.GetParams(value, 1)
-				dest := t.Resolve(params[0])
-				*dest = t.input.Pop()
-			}
-		case outputOpcode:
-			{
-				params := t.GetParams(value, 1)
-				value := t.Resolve(params[0])
-				t.output.Push(*value)
-			}
-		case jumpIfTrueOpcode:
-			{
-				params := t.GetParams(value, 2)
-				testValue := t.Resolve(params[0])
-				jumpIndex := t.Resolve(params[1])
-				if *testValue != 0 {
-					t.cursor = *jumpIndex
-				}
-			}
-		case jumpIfFalseOpcode:
-			{
-				params := t.GetParams(value, 2)
-				testValue := t.Resolve(params[0])
-				jumpIndex := t.Resolve(params[1])
-				if *testValue == 0 {
-					t.cursor = *jumpIndex
-				}
-			}
-		case lessThanOpcode:
-			{
-				params := t.GetParams(value, 3)
-				a := t.Resolve(params[0])
-				b := t.Resolve(params[1])
-				destination := t.Resolve(params[2])
-
-				writeValue := 0
-				if *a < *b {
-					writeValue = 1
-				}
-
-				*destination = writeValue
-			}
-		case equalsOpcode:
-			{
-				params := t.GetParams(value, 3)
-				a := t.Resolve(params[0])
-				b := t.Resolve(params[1])
-				destination := t.Resolve(params[2])
-
-				writeValue := 0
-				if *a == *b {
-					writeValue = 1
-				}
-				*destination = writeValue
-			}
-		case relativeAdjustOpcode:
-			{
-				params := t.GetParams(value, 1)
-				increment := t.Resolve(params[0])
-				t.relativeBase += *increment
-			}
-		default:
-			log.Fatal("Invalid opcode: ", opcode)
+	switch opcode {
+	case addOpcode:
+		{
+			params := t.GetParams(value, 3)
+			a := t.Resolve(params[0])
+			b := t.Resolve(params[1])
+			dest := t.Resolve(params[2])
+			*dest = *a + *b
 		}
+	case multiplyOpcode:
+		{
+			params := t.GetParams(value, 3)
+			a := t.Resolve(params[0])
+			b := t.Resolve(params[1])
+			dest := t.Resolve(params[2])
+			*dest = (*a) * (*b)
+		}
+	case inputOpcode:
+		{
+			params := t.GetParams(value, 1)
+			dest := t.Resolve(params[0])
+			*dest = t.input.Pop()
+		}
+	case outputOpcode:
+		{
+			params := t.GetParams(value, 1)
+			value := t.Resolve(params[0])
+			t.output.Push(*value)
+		}
+	case jumpIfTrueOpcode:
+		{
+			params := t.GetParams(value, 2)
+			testValue := t.Resolve(params[0])
+			jumpIndex := t.Resolve(params[1])
+			if *testValue != 0 {
+				t.cursor = *jumpIndex
+			}
+		}
+	case jumpIfFalseOpcode:
+		{
+			params := t.GetParams(value, 2)
+			testValue := t.Resolve(params[0])
+			jumpIndex := t.Resolve(params[1])
+			if *testValue == 0 {
+				t.cursor = *jumpIndex
+			}
+		}
+	case lessThanOpcode:
+		{
+			params := t.GetParams(value, 3)
+			a := t.Resolve(params[0])
+			b := t.Resolve(params[1])
+			destination := t.Resolve(params[2])
+
+			writeValue := 0
+			if *a < *b {
+				writeValue = 1
+			}
+
+			*destination = writeValue
+		}
+	case equalsOpcode:
+		{
+			params := t.GetParams(value, 3)
+			a := t.Resolve(params[0])
+			b := t.Resolve(params[1])
+			destination := t.Resolve(params[2])
+
+			writeValue := 0
+			if *a == *b {
+				writeValue = 1
+			}
+			*destination = writeValue
+		}
+	case relativeAdjustOpcode:
+		{
+			params := t.GetParams(value, 1)
+			increment := t.Resolve(params[0])
+			t.relativeBase += *increment
+		}
+	default:
+		log.Fatal("Invalid opcode: ", opcode)
 	}
+}
+
+// Run will run the tape from the current data/cursor until it halts or hits an unknown opcode
+func (t *Tape) RunUntilHalt() {
+	for !t.IsHalted() {
+		t.RunNextInstruction()
+	}
+}
+
+func (t *Tape) RunUntilNextOutput() int {
+	for !t.IsHalted() && t.output.Empty() {
+		t.RunNextInstruction()
+	}
+
+	if t.output.Empty() {
+		return 0
+	}
+
+	return t.output.Pop()
 }
 
 // GetTapeData returns data for a tape from the given path
