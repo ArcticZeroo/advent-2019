@@ -26,15 +26,7 @@ type Turtle struct {
 }
 
 func (t *Turtle) MoveForward() {
-	component := &t.pos.X
-	if t.dir == Up || t.dir == Down {
-		component = &t.pos.Y
-	}
-	increment := 1
-	if t.dir == Down || t.dir == Left {
-		increment = -1
-	}
-	*component += increment
+	t.MoveInDir(t.dir)
 }
 
 func (t *Turtle) TurnRight() {
@@ -43,6 +35,18 @@ func (t *Turtle) TurnRight() {
 
 func (t *Turtle) TurnLeft() {
 	t.dir = Direction(wrap(int(t.dir - 1), directionCount))
+}
+
+func (t *Turtle) MoveInDir(dir Direction) {
+	component := &t.pos.X
+	if dir == Up || dir == Down {
+		component = &t.pos.Y
+	}
+	increment := 1
+	if dir == Down || dir == Left {
+		increment = -1
+	}
+	*component += increment
 }
 
 func (t Turtle) Pos() point.Point {

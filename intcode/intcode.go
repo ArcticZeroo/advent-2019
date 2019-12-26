@@ -232,6 +232,14 @@ func (t *Tape) RunUntilNextOutput() int {
 	return t.output.Pop()
 }
 
+func (t Tape) Set(i int, x int) {
+	t.data[i] = x
+}
+
+func (t *Tape) ClearInput() {
+	t.input.Clear()
+}
+
 // GetTapeData returns data for a tape from the given path
 func GetTapeData(path string) []int {
 	file := datafile.Open(path)
