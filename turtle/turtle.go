@@ -12,12 +12,32 @@ const (
 	directionCount = Left + 1
 )
 
+var Directions = []Direction{Up, Right, Down, Left,}
+
 func wrap(v, l int) int {
 	for v < 0 {
 		v += l
 	}
 
 	return v % l
+}
+
+func (dir Direction) IsOpposite(otherDir Direction) bool {
+	return dir.Opposite() == otherDir
+}
+
+func (dir Direction) Opposite() Direction {
+	switch dir {
+	case Up:
+		return Down
+	case Down:
+		return Up
+	case Left:
+		return Right
+	case Right:
+		return Left
+	}
+	return -1
 }
 
 type Turtle struct {
@@ -38,17 +58,23 @@ func (t *Turtle) TurnLeft() {
 }
 
 func (t *Turtle) MoveInDir(dir Direction) {
-	component := &t.pos.X
+	t.pos = NextPosInDir(t.pos, dir)
+}
+
+func (t Turtle) Pos() point.Point {
+	return t.pos
+}
+
+// NextPosInDir returns a position which is exactly 1 grid point away from the given pos, in the given direction
+func NextPosInDir(pos point.Point, dir Direction) point.Point {
+	component := &pos.X
 	if dir == Up || dir == Down {
-		component = &t.pos.Y
+		component = &pos.Y
 	}
 	increment := 1
 	if dir == Down || dir == Left {
 		increment = -1
 	}
 	*component += increment
-}
-
-func (t Turtle) Pos() point.Point {
-	return t.pos
+	return pos
 }
